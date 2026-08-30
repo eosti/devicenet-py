@@ -1,0 +1,24 @@
+[project]
+name = "stacklight"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+  "bitstring>=4.4",
+  "pyserial>=3.5",
+  "python-can>=4.6.1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=9.1.1",
+  "ruff>=0.16.5",
+  "ty>=0.0.75",
+]
