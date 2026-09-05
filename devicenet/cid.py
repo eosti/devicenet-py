@@ -157,3 +157,11 @@ class DeviceNetCID:
             message_id=0b110,
             mac_id=dest_mac,
         )
+
+    @classmethod
+    def duplicate_mac_id_check(cls, dest_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b111,
+            mac_id=dest_mac,
+        )

@@ -169,11 +169,7 @@ class DeviceNet:
         Returns:
             bool: True if no collision detected, False otherwise.
         """
-        cid = DeviceNetCID(
-            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
-            message_id=0x07,
-            mac_id=self.mac_id,
-        )
+        cid = DeviceNetCID.duplicate_mac_id_check(dest_mac=self.mac_id)
         data = DeviceNetDuplicateMACIDCheckMessage(
             physical_port_number=self.port_number,
             vendor_id=self.vendor_id,
@@ -211,11 +207,7 @@ class DeviceNet:
             return False
 
     def add_mac_check_callback(self) -> None:
-        cid = DeviceNetCID(
-            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
-            message_id=0x07,
-            mac_id=self.mac_id,
-        )
+        cid = DeviceNetCID.duplicate_mac_id_check(dest_mac=self.mac_id)
         filter = CanFilter(
             id=cid.pack(), mask=0x7FF, callback=self.mac_id_check_callback
         )
@@ -230,11 +222,7 @@ class DeviceNet:
                 hex(check.vendor_id),
                 hex(check.serial_number),
             )
-            cid = DeviceNetCID(
-                message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
-                message_id=0x07,
-                mac_id=self.mac_id,
-            )
+            cid = DeviceNetCID.duplicate_mac_id_check(dest_mac=self.mac_id)
             data = DeviceNetDuplicateMACIDCheckMessage(
                 physical_port_number=self.port_number,
                 vendor_id=self.vendor_id,
