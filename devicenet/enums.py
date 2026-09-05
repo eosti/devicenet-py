@@ -4,7 +4,7 @@ from devicenet.dtypes import DeviceNetDatatype
 
 
 class DeviceNetMessageGroup(IntEnum):
-    """Message group values follow Table 2 for explicit connection requests"""
+    """Message group values follow Table 2 for explicit connection requests."""
 
     MESSAGE_GROUP_1 = 0
     MESSAGE_GROUP_2 = 1
@@ -35,7 +35,7 @@ class DeviceNetFragmentationType(IntEnum):
 
 
 class DeviceNetServiceCode(IntEnum):
-    """IEC 61158-6-2:2014 Table 172"""
+    """IEC 61158-6-2:2014 Table 172."""
 
     GET_ATTRIBUTE_ALL = 0x01
     SET_ATTRIBUTE_ALL = 0x02
@@ -61,7 +61,7 @@ class DeviceNetServiceCode(IntEnum):
 
 
 class AttributeEnum(IntEnum):
-    def __init__(self, value: int, dtype: DeviceNetDatatype):
+    def __init__(self, value: int, dtype: DeviceNetDatatype) -> None:
         self.val = (value,)
         self.dtype = dtype
 
@@ -73,7 +73,7 @@ class AttributeEnum(IntEnum):
 
 
 class DeviceNetConnectionObjectAttributes(AttributeEnum):
-    """IEC 61158-6-2:2014 Table 137"""
+    """IEC 61158-6-2:2014 Table 137."""
 
     STATE = 1, DeviceNetDatatype.USINT
     INSTANCE_TYPE = 2, DeviceNetDatatype.USINT

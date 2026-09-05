@@ -4,7 +4,7 @@ from typing import Any, Self
 
 
 class DeviceNetDatatype(Enum):
-    """IEC 61158-5-2:2014 section 5.3"""
+    """IEC 61158-5-2:2014 section 5.3."""
 
     NONE = 0
     BOOL = 1
@@ -54,9 +54,7 @@ class DeviceNetDatatype(Enum):
     @staticmethod
     def assert_type(val: Any, dtype) -> None:
         if not isinstance(val, dtype):
-            raise TypeError(
-                f"Value has invalid type for dtype (got {type(val)}, expected {dtype})"
-            )
+            raise TypeError(f"Value has invalid type for dtype (got {type(val)}, expected {dtype})")
 
     @classmethod
     def decode(cls, val: bytes, dtype: Self) -> Any:

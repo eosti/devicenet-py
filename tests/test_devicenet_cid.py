@@ -20,9 +20,7 @@ def test_devicenetcid_pack():
     )
     assert cid.pack() == 0x7B8
 
-    cid = DeviceNetCID(
-        message_group=DeviceNetMessageGroup.MESSAGE_GROUP_4, message_id=0x15
-    )
+    cid = DeviceNetCID(message_group=DeviceNetMessageGroup.MESSAGE_GROUP_4, message_id=0x15)
     assert cid.pack() == 0x7D5
 
 

@@ -20,7 +20,7 @@ class MessageField(ABC):
         """Packs the dataclass into one or more bytes."""
 
     @abstractmethod
-    def unpack(cls, data: bytes) -> Self:
+    def unpack(self, data: bytes) -> Self:
         """Unpacks one or more bytes into the dataclass."""
 
 
@@ -44,11 +44,7 @@ class DeviceNetExplicitHeader(MessageField):
         return cls(frag=header_bits[7], xid=header_bits[6], mac_id=header_bits[:6].uint)
 
     def pack(self) -> bytes:
-        return bytes(
-            Bits(bool=self.frag)
-            + Bits(bool=self.xid)
-            + Bits(uint=self.mac_id, length=6)
-        )
+        return bytes(Bits(bool=self.frag) + Bits(bool=self.xid) + Bits(uint=self.mac_id, length=6))
 
 
 @dataclass
@@ -73,9 +69,7 @@ class DeviceNetServiceField(MessageField):
         return cls(is_response=field_bits[7], service_code=field_bits[0:7].uint)
 
     def pack(self) -> bytes:
-        return bytes(
-            Bits(bool=self.is_response) + Bits(uint=self.service_code, length=7)
-        )
+        return bytes(Bits(bool=self.is_response) + Bits(uint=self.service_code, length=7))
 
 
 @dataclass
@@ -104,8 +98,7 @@ class DeviceNetFragmentProtocol(MessageField):
 
     def pack(self) -> bytes:
         return bytes(
-            Bits(uint=self.fragment_type, length=2)
-            + Bits(uint=self.fragmentation_count, length=6)
+            Bits(uint=self.fragment_type, length=2) + Bits(uint=self.fragmentation_count, length=6)
         )
 
 

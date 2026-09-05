@@ -16,12 +16,7 @@ def test_devicenet_explicit_message():
         mac_id=0x08, message=bytes([0xA4, 0x4B, 0x04, 0x05, 0x06, 0x07]), xid=True
     )
     assert next(msg.pack()) == bytes([0x48, 0xA4, 0x4B, 0x04, 0x05, 0x06, 0x07])
-    assert (
-        DeviceNetExplicitMessage.unpack(
-            bytes([0x48, 0xA4, 0x4B, 0x04, 0x05, 0x06, 0x07])
-        )
-        == msg
-    )
+    assert DeviceNetExplicitMessage.unpack(bytes([0x48, 0xA4, 0x4B, 0x04, 0x05, 0x06, 0x07])) == msg
 
 
 def test_devicenet_explicit_fragmented_message():
@@ -48,10 +43,7 @@ def test_devicenet_explicit_message_generic_service():
         mac_id=0x04, service_code=0x4B, message=bytes([0xA4, 0x4B])
     )
     assert next(msg.pack()) == bytes([0x04, 0x4B, 0xA4, 0x4B])
-    assert (
-        DeviceNetExplicitMessageGenericService.unpack(bytes([0x04, 0x4B, 0xA4, 0x4B]))
-        == msg
-    )
+    assert DeviceNetExplicitMessageGenericService.unpack(bytes([0x04, 0x4B, 0xA4, 0x4B])) == msg
 
 
 def test_devicenet_connection_request_message():
@@ -63,9 +55,7 @@ def test_devicenet_connection_request_message():
     )
     assert next(msg.pack()) == bytes([0x07, 0x4B, 0x00, 0x17])
     assert (
-        DeviceNetExplicitMessagingConnectionRequestMessage.unpack(
-            bytes([0x07, 0x4B, 0x00, 0x17])
-        )
+        DeviceNetExplicitMessagingConnectionRequestMessage.unpack(bytes([0x07, 0x4B, 0x00, 0x17]))
         == msg
     )
 

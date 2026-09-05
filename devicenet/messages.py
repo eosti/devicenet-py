@@ -31,7 +31,7 @@ class DeviceNetMessage(ABC):
         """Packs the message into an Iterable of 8 bytes or less."""
 
     @abstractmethod
-    def unpack(cls, data: bytes | list[bytes]) -> Self:
+    def unpack(self, data: bytes | list[bytes]) -> Self:
         """Unpacks a message into the dataclass."""
 
 
@@ -40,9 +40,11 @@ class DeviceNetEmptyMessage(DeviceNetMessage):
     def pack(self):
         yield None
 
-    def unpack(cls, data):
+    @classmethod
+    def unpack(cls, data) -> Self:
         if len(data) != 0:
             raise ValueError("Data passed to empty message")
+        return cls()
 
 
 @dataclass
@@ -122,9 +124,7 @@ class DeviceNetExplicitMessage(DeviceNetMessage):
                 if frag_proto.fragmentation_count == 0x3F:
                     return f[0:1] + f[2:8]
                 if frame_count != 0:
-                    raise RuntimeError(
-                        "First fragment found after other fragments processed"
-                    )
+                    raise RuntimeError("First fragment found after other fragments processed")
 
                 header.frag = False
                 all_data += header.pack()
@@ -234,12 +234,7 @@ class DeviceNetExplicitRequestMessage(DeviceNetExplicitMessageGenericService):
         if self.message is None:
             return service_field.pack() + class_field.bytes + instance_field.bytes
 
-        return (
-            service_field.pack()
-            + class_field.bytes
-            + instance_field.bytes
-            + self.message
-        )
+        return service_field.pack() + class_field.bytes + instance_field.bytes + self.message
 
     @classmethod
     def unpack(cls, data):
@@ -393,9 +388,7 @@ class DeviceNetDuplicateMACIDCheckMessage(DeviceNetMessage):
     is_response: bool = False
 
     def pack(self) -> Iterator[bytes]:
-        header = Bits(bool=self.is_response) + Bits(
-            uint=self.physical_port_number, length=7
-        )
+        header = Bits(bool=self.is_response) + Bits(uint=self.physical_port_number, length=7)
         vendor_id = self.vendor_id.to_bytes(2, "little", signed=False)
         serial_number = self.serial_number.to_bytes(4, "little", signed=False)
         yield header.bytes + vendor_id + serial_number
@@ -466,9 +459,7 @@ class DeviceNetAllocateMasterSlaveConnectionResponseMessage(DeviceNetMessage):
     def pack(self):
         header = DeviceNetExplicitHeader(mac_id=self.mac_id)
         service = DeviceNetServiceField(service_code=0x4B, is_response=True)
-        second_byte = Bits(uint=0, length=4) + Bits(
-            uint=self.message_body_format, length=4
-        )
+        second_byte = Bits(uint=0, length=4) + Bits(uint=self.message_body_format, length=4)
 
         yield header.pack() + service.pack() + second_byte.bytes
 

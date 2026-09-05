@@ -42,7 +42,7 @@ class DeviceNet:
         vendor_id: int = 0,
         serial_number: int = 0,
         port_number: int = 0,
-    ):
+    ) -> None:
         self.bus = bus
         self.mac_id = mac_id
         self.vendor_id = vendor_id
@@ -81,10 +81,10 @@ class DeviceNet:
                 self.fallback_callback(cid, data)
 
     @staticmethod
-    def _fallback_callback(cid: DeviceNetCID, data: bytes):
+    def _fallback_callback(cid: DeviceNetCID, data: bytes) -> None:
         logger.debug("Fallback callback reached for cid %s", cid)
 
-    def recv(self, timeout=0.1) -> None | tuple[DeviceNetCID, bytes]:
+    def recv(self, timeout=0.1) -> tuple[DeviceNetCID, bytes] | None:
         msg = self.bus.recv(timeout=timeout)
         if msg is None:
             return None
@@ -100,9 +100,7 @@ class DeviceNet:
 
     def send(self, cid: DeviceNetCID, msg: DeviceNetMessage) -> None:
         for d in msg.pack():
-            frame = Message(
-                arbitration_id=cid.pack(), data=d, is_extended_id=False, is_fd=False
-            )
+            frame = Message(arbitration_id=cid.pack(), data=d, is_extended_id=False, is_fd=False)
             self.bus.send(frame)
             logger.debug("TX: %s", frame)
 
@@ -132,7 +130,7 @@ class DeviceNet:
 
         resp = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal resp
             resp = data
 
@@ -150,10 +148,7 @@ class DeviceNet:
             logger.error("No response to connection request")
             return False
 
-        connection_response = (
-            DeviceNetExplicitMessagingConnectionResponseMessage.unpack(resp)
-        )
-        print(connection_response)
+        DeviceNetExplicitMessagingConnectionResponseMessage.unpack(resp)
         # TODO: not sure what to do now
         return True
 
@@ -168,6 +163,7 @@ class DeviceNet:
 
         Returns:
             bool: True if no collision detected, False otherwise.
+
         """
         cid = DeviceNetCID.duplicate_mac_id_check(dest_mac=self.mac_id)
         data = DeviceNetDuplicateMACIDCheckMessage(
@@ -182,7 +178,7 @@ class DeviceNet:
 
         mac_collision = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal mac_collision
             mac_collision = data
 
@@ -194,26 +190,23 @@ class DeviceNet:
         if mac_collision is None:
             logger.info("No MAC collision detected for %s", self.mac_id)
             return True
-        else:
-            collision_data = DeviceNetDuplicateMACIDCheckMessage.unpack(mac_collision)
-            if collision_data.is_response is False:
-                raise RuntimeError("Received MAC check response but R/R flag not set")
+        collision_data = DeviceNetDuplicateMACIDCheckMessage.unpack(mac_collision)
+        if collision_data.is_response is False:
+            raise RuntimeError("Received MAC check response but R/R flag not set")
 
-            logger.warning(
-                "MAC collision detected with vid=%s sn=%s",
-                hex(collision_data.vendor_id),
-                hex(collision_data.serial_number),
-            )
-            return False
+        logger.warning(
+            "MAC collision detected with vid=%s sn=%s",
+            hex(collision_data.vendor_id),
+            hex(collision_data.serial_number),
+        )
+        return False
 
     def add_mac_check_callback(self) -> None:
         cid = DeviceNetCID.duplicate_mac_id_check(dest_mac=self.mac_id)
-        filter = CanFilter(
-            id=cid.pack(), mask=0x7FF, callback=self.mac_id_check_callback
-        )
+        filter = CanFilter(id=cid.pack(), mask=0x7FF, callback=self.mac_id_check_callback)
         self.register_callback(filter)
 
-    def mac_id_check_callback(self, cid, data):
+    def mac_id_check_callback(self, cid, data) -> None:
         check = DeviceNetDuplicateMACIDCheckMessage.unpack(data)
         if check.is_response is False:
             # We respond to say that this MAC is already in use
@@ -247,6 +240,7 @@ class DeviceNet:
 
         Args:
             quick_connect: don't wait for a collision response
+
         """
         if self.state == DeviceNetState.ONLINE:
             return
@@ -288,7 +282,7 @@ class DeviceNet:
 
         resp = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal resp
             resp = data
 
@@ -301,9 +295,7 @@ class DeviceNet:
         if resp is None:
             raise RuntimeError("No response to connection request")
 
-        connection_response = (
-            DeviceNetAllocateMasterSlaveConnectionResponseMessage.unpack(resp)
-        )
+        connection_response = DeviceNetAllocateMasterSlaveConnectionResponseMessage.unpack(resp)
 
         return connection_response.message_body_format
 
@@ -327,7 +319,7 @@ class DeviceNet:
 
         resp = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal resp
             resp = data
 
@@ -373,7 +365,7 @@ class DeviceNet:
 
         resp = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal resp
             resp = data
 
@@ -391,14 +383,10 @@ class DeviceNet:
             logger.debug(resp_data)
             raise RuntimeError("Response service code does not match")
         if resp_data.message != payload:
-            logger.info(
-                "Set value differs: sent %s but received %s", payload, resp_data.message
-            )
+            logger.info("Set value differs: sent %s but received %s", payload, resp_data.message)
 
     def poll_io(self, dest_mac_id: int, val: bytes | None = None):
-        cid = DeviceNetCID.master_poll_command_or_change_of_state_or_cyclic(
-            dest_mac=dest_mac_id
-        )
+        cid = DeviceNetCID.master_poll_command_or_change_of_state_or_cyclic(dest_mac=dest_mac_id)
         if val is not None:
             body = DeviceNetDataMessage(val)
         else:
@@ -409,7 +397,7 @@ class DeviceNet:
 
         resp = None
 
-        def handler(cid, data):
+        def handler(cid, data) -> None:
             nonlocal resp
             resp = data
 

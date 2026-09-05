@@ -41,9 +41,7 @@ class DeviceNetCID:
                 mac_id=cid_bits[0:6].uint,
             )
         if cid_bits[6:] == "0b11111" and cid_bits[4:6] != "0b11":
-            return cls(
-                DeviceNetMessageGroup.MESSAGE_GROUP_4, message_id=cid_bits[0:6].uint
-            )
+            return cls(DeviceNetMessageGroup.MESSAGE_GROUP_4, message_id=cid_bits[0:6].uint)
 
         raise ValueError(f"Invalid CID 0x{cid:04X}")
 
@@ -69,6 +67,7 @@ class DeviceNetCID:
             ).uint
         if self.message_group == DeviceNetMessageGroup.MESSAGE_GROUP_4:
             return (Bits("0b11111") + Bits(uint=self.message_id, length=6)).uint
+        return None
 
     @classmethod
     def slave_multicast_poll_response(cls, source_mac: int) -> Self:
