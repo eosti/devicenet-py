@@ -66,7 +66,7 @@ class AttributeEnum(IntEnum):
         self.dtype = dtype
 
     def __new__(cls, value: int, dtype: DeviceNetDatatype):
-        member = object.__new__(cls)
+        member = int.__new__(cls)
         member._value_ = value
         member.dtype = dtype
         return member
