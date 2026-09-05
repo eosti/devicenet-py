@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass
+from typing import Self
 
 import bitstring
 from bitstring import Bits
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 bitstring.options.lsb0 = True
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class DeviceNetCID:
     message_group: DeviceNetMessageGroup = DeviceNetMessageGroup.MESSAGE_GROUP_1
     message_id: int | None = None
@@ -69,64 +70,90 @@ class DeviceNetCID:
         if self.message_group == DeviceNetMessageGroup.MESSAGE_GROUP_4:
             return (Bits("0b11111") + Bits(uint=self.message_id, length=6)).uint
 
+    @classmethod
+    def slave_multicast_poll_response(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_1,
+            message_id=0b1100,
+            mac_id=source_mac,
+        )
 
-@dataclass
-class SlaveMulticastPollResponseCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
-    message_id = 0b1100
+    @classmethod
+    def slave_change_of_state_or_cyclic(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_1,
+            message_id=0b1101,
+            mac_id=source_mac,
+        )
 
+    @classmethod
+    def slave_bit_strobe_response(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_1,
+            message_id=0b1110,
+            mac_id=source_mac,
+        )
 
-@dataclass
-class SlaveChangeOfStateOrCyclicCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
-    message_id = 0b1101
+    @classmethod
+    def slave_poll_response_or_ack(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_1,
+            message_id=0b1111,
+            mac_id=source_mac,
+        )
 
+    @classmethod
+    def master_bit_strobe_command(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b000,
+            mac_id=source_mac,
+        )
 
-@dataclass
-class SlaveBitStrobeResponseCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
-    message_id = 0b1110
+    @classmethod
+    def master_multicast_poll(cls, multicast_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b001,
+            mac_id=multicast_mac,
+        )
 
+    @classmethod
+    def master_change_of_state_or_cyclic_ack(cls, dest_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b010,
+            mac_id=dest_mac,
+        )
 
-@dataclass
-class SlavePollResponseOrAckCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
-    message_id = 0b1111
+    @classmethod
+    def slave_explicit_response(cls, source_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b011,
+            mac_id=source_mac,
+        )
 
+    @classmethod
+    def master_explicit_request(cls, dest_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b100,
+            mac_id=dest_mac,
+        )
 
-@dataclass
-class MasterBitStrobeCommandCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b000
+    @classmethod
+    def master_poll_command_or_change_of_state_or_cyclic(cls, dest_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b101,
+            mac_id=dest_mac,
+        )
 
-
-@dataclass
-class MasterMulticastPollCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b001
-
-
-@dataclass
-class MasterChangeOfStateOrCyclicAckCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b010
-
-
-class SlaveExplicitResponseCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b011
-
-
-class MasterExplicitRequestCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b100
-
-
-class MasterPollCommandOrChangeOfStateOrCyclicCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b101
-
-
-class Group2UnconnectedExplicitRequestCID(DeviceNetCID):
-    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
-    message_id = 0b110
+    @classmethod
+    def group_2_unconnected_explicit_request(cls, dest_mac: int) -> Self:
+        return cls(
+            message_group=DeviceNetMessageGroup.MESSAGE_GROUP_2,
+            message_id=0b110,
+            mac_id=dest_mac,
+        )

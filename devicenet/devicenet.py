@@ -6,13 +6,7 @@ import bitstring
 from can import Message
 from can.interface import BusABC
 
-from devicenet.cid import (
-    DeviceNetCID,
-    MasterExplicitRequestCID,
-    MasterPollCommandOrChangeOfStateOrCyclicCID,
-    SlaveExplicitResponseCID,
-    SlavePollResponseOrAckCID,
-)
+from devicenet.cid import DeviceNetCID
 from devicenet.dtypes import DeviceNetDatatype
 from devicenet.enums import (
     AttributeEnum,
@@ -301,7 +295,7 @@ class DeviceNet:
             allocation_choice=allocation_choice,
             allocator_id=self.mac_id,
         )
-        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        cid = DeviceNetCID.master_explicit_request(dest_mac=dest_mac_id)
         self.send(cid, body)
 
         resp = None
@@ -310,7 +304,7 @@ class DeviceNet:
             nonlocal resp
             resp = data
 
-        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        resp_cid = DeviceNetCID.slave_explicit_response(source_mac=dest_mac_id)
         filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
         self.register_callback(filter)
         self.handle_messages()
@@ -340,7 +334,7 @@ class DeviceNet:
             body_format=body_format,
             message=bytes([attribute.value]),
         )
-        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        cid = DeviceNetCID.master_explicit_request(dest_mac=dest_mac_id)
         self.send(cid, body)
 
         resp = None
@@ -349,7 +343,7 @@ class DeviceNet:
             nonlocal resp
             resp = data
 
-        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        resp_cid = DeviceNetCID.slave_explicit_response(source_mac=dest_mac_id)
         filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
         self.register_callback(filter)
         self.handle_messages()
@@ -386,7 +380,7 @@ class DeviceNet:
             message=bytes([attribute.value]) + payload,
         )
 
-        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        cid = DeviceNetCID.master_explicit_request(dest_mac=dest_mac_id)
         self.send(cid, body)
 
         resp = None
@@ -395,7 +389,7 @@ class DeviceNet:
             nonlocal resp
             resp = data
 
-        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        resp_cid = DeviceNetCID.slave_explicit_response(source_mac=dest_mac_id)
         filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
         self.register_callback(filter)
         self.handle_messages()
@@ -414,7 +408,9 @@ class DeviceNet:
             )
 
     def poll_io(self, dest_mac_id: int, val: bytes | None = None):
-        cid = MasterPollCommandOrChangeOfStateOrCyclicCID(mac_id=dest_mac_id)
+        cid = DeviceNetCID.master_poll_command_or_change_of_state_or_cyclic(
+            dest_mac=dest_mac_id
+        )
         if val is not None:
             body = DeviceNetDataMessage(val)
         else:
@@ -429,7 +425,7 @@ class DeviceNet:
             nonlocal resp
             resp = data
 
-        resp_cid = SlavePollResponseOrAckCID(mac_id=dest_mac_id)
+        resp_cid = DeviceNetCID.slave_poll_response_or_ack(source_mac=dest_mac_id)
         filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
         self.register_callback(filter)
         self.handle_messages()
