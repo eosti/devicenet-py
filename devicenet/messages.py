@@ -13,6 +13,7 @@ from devicenet.enums import (
     DeviceNetMessageGroup,
 )
 from devicenet.fields import (
+    DeviceNetAllocationChoiceByte,
     DeviceNetExplicitHeader,
     DeviceNetFragmentProtocol,
     DeviceNetServiceField,
@@ -35,9 +36,38 @@ class DeviceNetMessage(ABC):
 
 
 @dataclass
+class DeviceNetEmptyMessage(DeviceNetMessage):
+    def pack(self):
+        yield None
+
+    def unpack(cls, data):
+        if len(data) != 0:
+            raise ValueError("Data passed to empty message")
+
+
+@dataclass
+class DeviceNetDataMessage(DeviceNetMessage):
+    data: bytes
+
+    def pack(self):
+        for i in range(0, len(self.data), 8):
+            if i == len(self.data) - len(self.data) % 8:
+                yield self.data[i:]
+                return
+            else:
+                yield self.data[i : i + 8]
+
+    @classmethod
+    def unpack(cls, data: bytes | list[bytes]) -> Self:
+        if not isinstance(data, bytes):
+            data = b"".join(data)
+        return cls(data)
+
+
+@dataclass
 class DeviceNetExplicitMessage(DeviceNetMessage):
     mac_id: int
-    message: bytes
+    message: bytes | None
     xid: bool = False
 
     def pack(self) -> Iterator[bytes]:
@@ -47,18 +77,19 @@ class DeviceNetExplicitMessage(DeviceNetMessage):
             return
 
         header = DeviceNetExplicitHeader(mac_id=self.mac_id, frag=True, xid=self.xid)
-        int((len(self.body) - 1) / 6) + 1
         for i in range(0, len(self.body), 6):
-            data_chunk = self.body[i : i + 6]
             if i == 0:
+                data_chunk = self.body[i : i + 6]
                 fragment_byte = DeviceNetFragmentProtocol(
                     DeviceNetFragmentationType.FIRST_FRAGMENT, 0
                 )
             elif i == len(self.body) - len(self.body) % 6:
+                data_chunk = self.body[i:]
                 fragment_byte = DeviceNetFragmentProtocol(
                     DeviceNetFragmentationType.LAST_FRAGMENT, int(i / 6)
                 )
             else:
+                data_chunk = self.body[i : i + 6]
                 fragment_byte = DeviceNetFragmentProtocol(
                     DeviceNetFragmentationType.MIDDLE_FRAGMENT, int(i / 6)
                 )
@@ -69,6 +100,9 @@ class DeviceNetExplicitMessage(DeviceNetMessage):
     def body(self) -> bytes:
         if not isinstance(self.message, bytes):
             raise TypeError("Message must be a bytes object")
+
+        if self.message is None:
+            return b""
 
         return self.message
 
@@ -141,6 +175,8 @@ class DeviceNetExplicitMessageGenericService(DeviceNetExplicitMessage):
         service_field = DeviceNetServiceField(
             service_code=self.service_code, is_response=self.is_response
         )
+        if self.message is None:
+            return service_field.pack()
         return service_field.pack() + self.message
 
     @classmethod
@@ -155,6 +191,95 @@ class DeviceNetExplicitMessageGenericService(DeviceNetExplicitMessage):
             service_code=service_field.service_code,
             is_response=service_field.is_response,
             message=data[2:],
+        )
+
+
+@dataclass
+class DeviceNetExplicitRequestMessage(DeviceNetExplicitMessageGenericService):
+    """A devicenet explicit request message for message body format values 0-3.
+
+    Service data goes in self.message.
+
+    This structure is defined in IEC 62026-3:2014, section 5.2.1.6.2.
+    """
+
+    class_id: int = 0x00
+    instance_id: int = 0x00
+    body_format: DeviceNetBodyFormat = DeviceNetBodyFormat.DEVICENET_8_8
+
+    @property
+    def body(self) -> bytes:
+        if not isinstance(self.message, bytes):
+            raise TypeError("Message must be a bytes object")
+
+        service_field = DeviceNetServiceField(
+            service_code=self.service_code, is_response=self.is_response
+        )
+        if self.body_format == DeviceNetBodyFormat.DEVICENET_8_8:
+            class_field = Bits(uint=self.class_id, length=8)
+            instance_field = Bits(uint=self.instance_id, length=8)
+        elif self.body_format == DeviceNetBodyFormat.DEVICENET_8_16:
+            # TODO: endianness?
+            class_field = Bits(uint=self.class_id, length=8)
+            instance_field = Bits(uint=self.instance_id, length=16)
+        elif self.body_format == DeviceNetBodyFormat.DEVICENET_16_8:
+            class_field = Bits(uint=self.class_id, length=16)
+            instance_field = Bits(uint=self.instance_id, length=8)
+        elif self.body_format == DeviceNetBodyFormat.DEVICENET_16_16:
+            class_field = Bits(uint=self.class_id, length=16)
+            instance_field = Bits(uint=self.instance_id, length=16)
+        else:
+            raise ValueError("CIP paths not implemented here")
+
+        if self.message is None:
+            return service_field.pack() + class_field.bytes + instance_field.bytes
+
+        return (
+            service_field.pack()
+            + class_field.bytes
+            + instance_field.bytes
+            + self.message
+        )
+
+    @classmethod
+    def unpack(cls, data):
+        if not isinstance(data, bytes):
+            data = cls.unfragment(data)
+            raise NotImplementedError
+
+        # TODO: how to get/determine body format
+        body_format = 0
+
+        header = DeviceNetExplicitHeader.unpack(data[0:1])
+        service_field = DeviceNetServiceField.unpack(data[1:2])
+
+        if body_format == DeviceNetBodyFormat.DEVICENET_8_8:
+            class_field = Bits(data[2:3])
+            instance_field = Bits(data[3:4])
+            service_data = data[4:]
+        elif body_format == DeviceNetBodyFormat.DEVICENET_8_16:
+            class_field = Bits(data[2:3])
+            instance_field = Bits(data[3:5])
+            service_data = data[5:]
+        elif body_format == DeviceNetBodyFormat.DEVICENET_16_8:
+            class_field = Bits(data[2:4])
+            instance_field = Bits(data[4:5])
+            service_data = data[5:]
+        elif body_format == DeviceNetBodyFormat.DEVICENET_16_16:
+            class_field = Bits(data[2:4])
+            instance_field = Bits(data[4:6])
+            service_data = data[6:]
+        else:
+            raise ValueError("CIP paths not implemented here")
+
+        return cls(
+            mac_id=header.mac_id,
+            xid=header.xid,
+            service_code=service_field.service_code,
+            is_response=service_field.is_response,
+            class_id=class_field.uint,
+            instance_id=instance_field.uint,
+            message=service_data,
         )
 
 
@@ -222,13 +347,13 @@ class DeviceNetExplicitMessagingConnectionResponseMessage(DeviceNetMessage):
         byte_three = Bits(uint=self.destination_message_id, length=4) + Bits(
             uint=self.source_message_id, length=4
         )
-        byte_four_five = Bits(uint=self.connection_instance_id, length=16)
+        byte_four_five = self.connection_instance_id.to_bytes(2, "little", signed=False)
         yield (
             header.pack()
             + service_field.pack()
             + byte_two.bytes
             + byte_three.bytes
-            + byte_four_five.bytes[::-1]
+            + byte_four_five
         )
 
     @classmethod
@@ -239,10 +364,7 @@ class DeviceNetExplicitMessagingConnectionResponseMessage(DeviceNetMessage):
         service_field = DeviceNetServiceField.unpack(data[1:2])
         byte_two = Bits(uint=data[2], length=8)
         byte_three = Bits(uint=data[3], length=8)
-        connection_instance = Bits(uint=data[5], length=8) + Bits(
-            uint=data[4], length=8
-        )
-
+        connection_instance = int.from_bytes(data[4:6], "little", signed=False)
         if service_field.service_code != 0x4B:
             raise RuntimeError("Invalid service code for this message")
 
@@ -254,7 +376,7 @@ class DeviceNetExplicitMessagingConnectionResponseMessage(DeviceNetMessage):
             body_format=DeviceNetBodyFormat(byte_two[0:4].uint),
             destination_message_id=byte_three[4:8].uint,
             source_message_id=byte_three[0:4].uint,
-            connection_instance_id=connection_instance.uint,
+            connection_instance_id=connection_instance,
         )
 
 
@@ -274,22 +396,96 @@ class DeviceNetDuplicateMACIDCheckMessage(DeviceNetMessage):
         header = Bits(bool=self.is_response) + Bits(
             uint=self.physical_port_number, length=7
         )
-        vendor_id = Bits(uint=self.vendor_id, length=16)
-        serial_number = Bits(uint=self.serial_number, length=32)
-        # TODO: verify that these put the high byte last
-        yield header.bytes + vendor_id.bytes[::-1] + serial_number.bytes[::-1]
+        vendor_id = self.vendor_id.to_bytes(2, "little", signed=False)
+        serial_number = self.serial_number.to_bytes(4, "little", signed=False)
+        yield header.bytes + vendor_id + serial_number
 
     @classmethod
     def unpack(cls, data: bytes | list[bytes]) -> Self:
         if not isinstance(data, bytes):
             raise TypeError("Data should be a single bytes object")
         header = Bits(uint=data[0], length=8)
-        vendor_id = Bits(data[1:3])
-        serial_number = Bits(data[3:7])
+        vendor_id = int.from_bytes(data[1:3], byteorder="little", signed=False)
+        serial_number = int.from_bytes(data[3:7], byteorder="little", signed=False)
 
         return cls(
             is_response=header[7],
             physical_port_number=header[0:7].uint,
-            vendor_id=vendor_id.uint,
-            serial_number=serial_number.uint,
+            vendor_id=vendor_id,
+            serial_number=serial_number,
         )
+
+
+@dataclass
+class DeviceNetAllocateMasterSlaveConnectionRequestMessage(DeviceNetMessage):
+    mac_id: int
+    allocation_choice: DeviceNetAllocationChoiceByte
+    allocator_id: int
+
+    def pack(self) -> Iterator[bytes]:
+        header = DeviceNetExplicitHeader(mac_id=self.mac_id)
+        service = DeviceNetServiceField(service_code=0x4B)
+        final_byte = Bits(uint=self.allocator_id, length=6)
+
+        yield (
+            header.pack()
+            + service.pack()
+            + bytes([0x03, 0x01])
+            + self.allocation_choice.pack()
+            + final_byte.tobytes()
+        )
+
+    @classmethod
+    def unpack(cls, data):
+        if not isinstance(data, bytes):
+            raise TypeError("Data should be a single bytes object")
+        if len(data) != 6:
+            raise ValueError("Expected 6 bytes in the message")
+
+        header = DeviceNetExplicitHeader.unpack(data[0:1])
+        service = DeviceNetServiceField.unpack(data[1:2])
+
+        if service.service_code != 0x4B:
+            raise ValueError("Message is does not have correct service code")
+
+        allocation_choice = DeviceNetAllocationChoiceByte.unpack(data[4:5])
+        allocator_id = Bits(data[6:7])[0:6]
+
+        return cls(
+            mac_id=header.mac_id,
+            allocation_choice=allocation_choice,
+            allocator_id=allocator_id.uint,
+        )
+
+
+@dataclass
+class DeviceNetAllocateMasterSlaveConnectionResponseMessage(DeviceNetMessage):
+    mac_id: int
+    message_body_format: DeviceNetBodyFormat
+
+    def pack(self):
+        header = DeviceNetExplicitHeader(mac_id=self.mac_id)
+        service = DeviceNetServiceField(service_code=0x4B, is_response=True)
+        second_byte = Bits(uint=0, length=4) + Bits(
+            uint=self.message_body_format, length=4
+        )
+
+        yield header.pack() + service.pack() + second_byte.bytes
+
+    @classmethod
+    def unpack(cls, data):
+        if not isinstance(data, bytes):
+            raise TypeError("Data should be a single bytes object")
+        if len(data) != 3:
+            raise ValueError("Expected 3 bytes in the message")
+
+        header = DeviceNetExplicitHeader.unpack(data[0:1])
+        service = DeviceNetServiceField.unpack(data[1:2])
+
+        if service.service_code != 0x4B:
+            logger.debug(service)
+            raise ValueError("Message is does not have correct service code")
+
+        message_body_format = DeviceNetBodyFormat(Bits(data[2:3])[0:3].uint)
+
+        return cls(mac_id=header.mac_id, message_body_format=message_body_format)

@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Any
 
 import bitstring
 from can import Message
@@ -7,13 +8,31 @@ from can.interface import BusABC
 
 from devicenet.cid import (
     DeviceNetCID,
+    MasterExplicitRequestCID,
+    MasterPollCommandOrChangeOfStateOrCyclicCID,
+    SlaveExplicitResponseCID,
+    SlavePollResponseOrAckCID,
 )
-from devicenet.enums import DeviceNetBodyFormat, DeviceNetMessageGroup, DeviceNetState
+from devicenet.dtypes import DeviceNetDatatype
+from devicenet.enums import (
+    AttributeEnum,
+    DeviceNetBodyFormat,
+    DeviceNetMessageGroup,
+    DeviceNetServiceCode,
+    DeviceNetState,
+)
+from devicenet.fields import DeviceNetAllocationChoiceByte
 from devicenet.helpers import CanFilter
 from devicenet.messages import (
+    DeviceNetAllocateMasterSlaveConnectionRequestMessage,
+    DeviceNetAllocateMasterSlaveConnectionResponseMessage,
+    DeviceNetDataMessage,
     DeviceNetDuplicateMACIDCheckMessage,
+    DeviceNetEmptyMessage,
+    DeviceNetExplicitMessageGenericService,
     DeviceNetExplicitMessagingConnectionRequestMessage,
     DeviceNetExplicitMessagingConnectionResponseMessage,
+    DeviceNetExplicitRequestMessage,
     DeviceNetMessage,
 )
 
@@ -273,3 +292,150 @@ class DeviceNet:
         self.state = DeviceNetState.ONLINE
         logger.info("Connected to bus as %s", hex(self.mac_id))
         self.add_mac_check_callback()
+
+    def master_slave_connect(
+        self, dest_mac_id: int, allocation_choice: DeviceNetAllocationChoiceByte
+    ) -> DeviceNetBodyFormat:
+        body = DeviceNetAllocateMasterSlaveConnectionRequestMessage(
+            mac_id=self.mac_id,
+            allocation_choice=allocation_choice,
+            allocator_id=self.mac_id,
+        )
+        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        self.send(cid, body)
+
+        resp = None
+
+        def handler(cid, data):
+            nonlocal resp
+            resp = data
+
+        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
+        self.register_callback(filter)
+        self.handle_messages()
+        self.deregister_callback(filter)
+
+        if resp is None:
+            raise RuntimeError("No response to connection request")
+
+        connection_response = (
+            DeviceNetAllocateMasterSlaveConnectionResponseMessage.unpack(resp)
+        )
+
+        return connection_response.message_body_format
+
+    def get_attribute_single(
+        self,
+        dest_mac_id: int,
+        attribute: AttributeEnum,
+        body_format: DeviceNetBodyFormat = DeviceNetBodyFormat.DEVICENET_8_8,
+    ) -> bytes:
+        body = DeviceNetExplicitRequestMessage(
+            service_code=DeviceNetServiceCode.GET_ATTRIBUTE_SINGLE,
+            is_response=False,
+            mac_id=self.mac_id,
+            class_id=5,
+            instance_id=2,
+            body_format=body_format,
+            message=bytes([attribute.value]),
+        )
+        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        self.send(cid, body)
+
+        resp = None
+
+        def handler(cid, data):
+            nonlocal resp
+            resp = data
+
+        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
+        self.register_callback(filter)
+        self.handle_messages()
+        self.deregister_callback(filter)
+
+        if resp is None:
+            raise RuntimeError("No response to get attribute single request")
+
+        resp_data = DeviceNetExplicitMessageGenericService.unpack(resp)
+        if resp_data.service_code != DeviceNetServiceCode.GET_ATTRIBUTE_SINGLE:
+            logger.debug(resp_data)
+            raise RuntimeError("Response service code does not match")
+
+        if resp_data.message is None:
+            return b""
+
+        return DeviceNetDatatype.decode(resp_data.message, attribute.dtype)
+
+    def set_attribute_single(
+        self,
+        dest_mac_id: int,
+        attribute: AttributeEnum,
+        val: Any,
+        body_format: DeviceNetBodyFormat = DeviceNetBodyFormat.DEVICENET_8_8,
+    ) -> None:
+        payload = DeviceNetDatatype.encode(val, attribute.dtype)
+        body = DeviceNetExplicitRequestMessage(
+            service_code=DeviceNetServiceCode.SET_ATTRIBUTE_SINGLE,
+            is_response=False,
+            mac_id=self.mac_id,
+            class_id=5,
+            instance_id=2,
+            body_format=body_format,
+            message=bytes([attribute.value]) + payload,
+        )
+
+        cid = MasterExplicitRequestCID(mac_id=dest_mac_id)
+        self.send(cid, body)
+
+        resp = None
+
+        def handler(cid, data):
+            nonlocal resp
+            resp = data
+
+        resp_cid = SlaveExplicitResponseCID(mac_id=dest_mac_id)
+        filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
+        self.register_callback(filter)
+        self.handle_messages()
+        self.deregister_callback(filter)
+
+        if resp is None:
+            raise RuntimeError("No response to set attribute single request")
+
+        resp_data = DeviceNetExplicitMessageGenericService.unpack(resp)
+        if resp_data.service_code != DeviceNetServiceCode.SET_ATTRIBUTE_SINGLE:
+            logger.debug(resp_data)
+            raise RuntimeError("Response service code does not match")
+        if resp_data.message != payload:
+            logger.info(
+                "Set value differs: sent %s but received %s", payload, resp_data.message
+            )
+
+    def poll_io(self, dest_mac_id: int, val: bytes | None = None):
+        cid = MasterPollCommandOrChangeOfStateOrCyclicCID(mac_id=dest_mac_id)
+        if val is not None:
+            body = DeviceNetDataMessage(val)
+        else:
+            # read only
+            body = DeviceNetEmptyMessage()
+
+        self.send(cid, body)
+
+        resp = None
+
+        def handler(cid, data):
+            nonlocal resp
+            resp = data
+
+        resp_cid = SlavePollResponseOrAckCID(mac_id=dest_mac_id)
+        filter = CanFilter(id=resp_cid.pack(), mask=0x7FF, callback=handler)
+        self.register_callback(filter)
+        self.handle_messages()
+        self.deregister_callback(filter)
+
+        if resp is None:
+            raise RuntimeError("No response to poll io")
+
+        return resp

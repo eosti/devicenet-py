@@ -4,9 +4,7 @@ from dataclasses import dataclass
 import bitstring
 from bitstring import Bits
 
-from devicenet.enums import (
-    DeviceNetMessageGroup,
-)
+from devicenet.enums import DeviceNetMessageGroup
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +13,7 @@ bitstring.options.lsb0 = True
 
 @dataclass
 class DeviceNetCID:
-    message_group: DeviceNetMessageGroup
+    message_group: DeviceNetMessageGroup = DeviceNetMessageGroup.MESSAGE_GROUP_1
     message_id: int | None = None
     mac_id: int | None = None
 
@@ -70,3 +68,65 @@ class DeviceNetCID:
             ).uint
         if self.message_group == DeviceNetMessageGroup.MESSAGE_GROUP_4:
             return (Bits("0b11111") + Bits(uint=self.message_id, length=6)).uint
+
+
+@dataclass
+class SlaveMulticastPollResponseCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
+    message_id = 0b1100
+
+
+@dataclass
+class SlaveChangeOfStateOrCyclicCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
+    message_id = 0b1101
+
+
+@dataclass
+class SlaveBitStrobeResponseCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
+    message_id = 0b1110
+
+
+@dataclass
+class SlavePollResponseOrAckCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_1
+    message_id = 0b1111
+
+
+@dataclass
+class MasterBitStrobeCommandCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b000
+
+
+@dataclass
+class MasterMulticastPollCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b001
+
+
+@dataclass
+class MasterChangeOfStateOrCyclicAckCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b010
+
+
+class SlaveExplicitResponseCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b011
+
+
+class MasterExplicitRequestCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b100
+
+
+class MasterPollCommandOrChangeOfStateOrCyclicCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b101
+
+
+class Group2UnconnectedExplicitRequestCID(DeviceNetCID):
+    message_group = DeviceNetMessageGroup.MESSAGE_GROUP_2
+    message_id = 0b110

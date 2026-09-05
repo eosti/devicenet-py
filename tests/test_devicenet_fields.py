@@ -33,6 +33,10 @@ def test_devicenet_service_field():
     assert field.pack() == bytes([0xC9])
     assert DeviceNetServiceField.unpack(bytes([0xC9])) == field
 
+    field = DeviceNetServiceField.unpack(bytes([0xCB]))
+    assert field.is_response is True
+    assert field.service_code == 0x4B
+
 
 def test_devicenet_fragment_protocol():
     field = DeviceNetFragmentProtocol(
