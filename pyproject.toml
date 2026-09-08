@@ -12,6 +12,7 @@ classifiers = [
 ]
 dependencies = [
   "bitstring>=4.4",
+  "pandas>=3.0.5",
   "pyserial>=3.5",
   "python-can>=4.6.1",
 ]
